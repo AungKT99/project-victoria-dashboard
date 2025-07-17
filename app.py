@@ -16,18 +16,8 @@ import json
 from config import config
 from mqtt_handler import MQTTHandler
 from trilateration import RSSITrilaterationSolver
-from utils.field_config import (
-    validate_rsu_positions, 
-    calculate_optimal_rsu_positions,
-    calculate_coverage_quality,
-    suggest_rsu_improvements
-)
-from utils.data_processing import (
-    format_rssi_for_display,
-    calculate_data_rate,
-    export_data_to_csv,
-    validate_position_data
-)
+from utils.field_config import validate_rsu_positions
+from utils.data_processing import format_rssi_for_display, calculate_data_rate
 
 # Page configuration
 st.set_page_config(
@@ -275,18 +265,11 @@ def sidebar_configuration():
             step=5.0
         )
         
-        if st.button("🎯 Auto-optimize RSU Positions"):
-            optimal_positions = calculate_optimal_rsu_positions(new_width, new_height)
-            st.session_state.rsu_positions = optimal_positions
-            st.success("RSU positions optimized!")
-            st.rerun()
-        
         st.divider()
         
         # RSU positions
         st.subheader("RSU Positions")
         
-        rsu_positions_changed = False
         new_rsu_positions = {}
         
         for rsu_id in ['RSU1', 'RSU2', 'RSU3']:
@@ -311,9 +294,6 @@ def sidebar_configuration():
                 )
             
             new_rsu_positions[rsu_id] = (x, y)
-            
-            if (x, y) != st.session_state.rsu_positions.get(rsu_id, (0, 0)):
-                rsu_positions_changed = True
         
         if st.button("📍 Apply Configuration", type="primary"):
             st.session_state.field_width = new_width
@@ -328,27 +308,6 @@ def sidebar_configuration():
             else:
                 st.success("Configuration applied successfully!")
                 st.rerun()
-        
-        # Coverage quality
-        quality = calculate_coverage_quality(
-            st.session_state.rsu_positions,
-            st.session_state.field_width,
-            st.session_state.field_height
-        )
-        
-        st.metric("Coverage Quality", f"{quality:.1%}")
-        
-        # Suggestions
-        suggestions = suggest_rsu_improvements(
-            st.session_state.rsu_positions,
-            st.session_state.field_width,
-            st.session_state.field_height
-        )
-        
-        if suggestions:
-            st.subheader("💡 Suggestions")
-            for suggestion in suggestions:
-                st.info(suggestion)
         
         st.divider()
         
@@ -371,19 +330,6 @@ def sidebar_configuration():
                 st.session_state.mqtt_handler.clear_history()
             st.success("Trail cleared!")
             st.rerun()
-        
-        # Export data
-        if st.session_state.position_data:
-            csv_data = export_data_to_csv(
-                st.session_state.position_data,
-                st.session_state.rssi_data
-            )
-            st.download_button(
-                label="📥 Export Data (CSV)",
-                data=csv_data,
-                file_name=f"project_victoria_data_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-                mime="text/csv"
-            )
 
 def main_dashboard():
     """Main dashboard content"""
