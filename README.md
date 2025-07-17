@@ -97,45 +97,6 @@ export FIELD_WIDTH="100"
 export FIELD_HEIGHT="75"
 ```
 
-## 📊 Features
-
-### Real-time Visualization
-
-- **Interactive field map** with RSU and OBU positions
-- **Position trail** showing movement history
-- **RSSI signal strength** indicators
-- **Coverage quality** assessment
-
-### Data Processing
-
-- **Trilateration algorithms** for position calculation
-- **Position filtering** using Kalman-like filters
-- **Movement statistics** (speed, distance, variance)
-- **Data validation** and outlier detection
-
-### Configuration Tools
-
-- **Auto-optimization** of RSU positions
-- **Coverage quality** scoring
-- **Positioning suggestions** for improved accuracy
-- **Field boundary** validation
-
-### Data Export
-
-- **CSV export** of position and RSSI data
-- **Real-time metrics** (data rate, accuracy)
-- **Historical analysis** tools
-
-## 🛠️ Technical Details
-
-### Trilateration Algorithm
-
-The system uses RSSI-based trilateration with:
-
-- **Log-distance path loss model** for RSSI-to-distance conversion
-- **Least squares** and **optimization-based** solvers
-- **Geometric Dilution of Precision (GDOP)** calculation
-- **Position filtering** for noise reduction
 
 ### MQTT Data Format
 
@@ -184,14 +145,6 @@ import logging
 logging.basicConfig(level=logging.DEBUG)
 ```
 
-## 📈 Performance
-
-### System Requirements
-
-- **CPU**: 2+ cores recommended
-- **RAM**: 2GB minimum, 4GB recommended
-- **Network**: Stable internet connection for AWS IoT
-- **Browser**: Modern browser with JavaScript enabled
 
 ### Optimization Tips
 
