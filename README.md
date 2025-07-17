@@ -1,35 +1,5 @@
 # Project Victoria Dashboard
 
-A real-time dashboard for visualizing vehicle and worker localization at construction sites using V2X technology and RSSI-based trilateration.
-
-## 🚧 Project Overview
-
-Project Victoria is a safety system designed to prevent accidents between vehicles and workers at construction sites through:
-
-- **Real-time localization** using RSSI measurements from V2X RSUs
-- **AI-based safety alerts** for collision prediction
-- **Interactive dashboard** for monitoring and visualization
-- **Integration with AWS IoT Core** for cloud-based processing
-
-## 🏗️ System Architecture
-
-```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   RSU 1,2,3     │    │  Python Bridge  │    │   AWS IoT Core  │
-│   (C++ Apps)    │───▶│  (Unix Socket)  │───▶│     (MQTT)      │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-                                                        │
-                                                        ▼
-┌─────────────────┐                           ┌─────────────────┐
-│ Streamlit App   │◀──────────────────────────│  MQTT Handler   │
-│  (Dashboard)    │                           │ (Background)    │
-└─────────────────┘                           └─────────────────┘
-                                                        │
-                                                        ▼
-                                              ┌─────────────────┐
-                                              │ Trilateration   │
-                                              │   Algorithm     │
-                                              └─────────────────┘
 ```
 
 ## 📁 File Structure
