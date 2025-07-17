@@ -1,0 +1,8 @@
+streamlit
+plotly
+boto3
+AWSIoTPythonSDK
+numpy
+scipy
+pandas
+paho-mqtt
