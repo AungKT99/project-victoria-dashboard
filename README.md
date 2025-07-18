@@ -1,6 +1,5 @@
 # Project Victoria Dashboard
 
-```
 
 ## 📁 File Structure
 
