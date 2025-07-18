@@ -13,9 +13,9 @@ class RSSITrilaterationSolver:
     """
     
     def __init__(self):
-        # RSSI to distance conversion parameters
+        # RSSI to distance conversion parameters  
         # Using simplified log-distance path loss model: RSSI = A - 10*n*log10(d)
-        self.tx_power = -30  # dBm (typical for V2X)
+        self.tx_power = 20  # dBm (Murata Type1YL DSRC mode typical power)
         self.path_loss_exponent = 2.0  # Free space = 2, urban = 2.7-5
         self.reference_distance = 1.0  # meters
         
@@ -35,6 +35,9 @@ class RSSITrilaterationSolver:
         # RSSI = Tx_Power - 10 * n * log10(d/d0)
         # d = d0 * 10^((Tx_Power - RSSI) / (10 * n))
         distance = self.reference_distance * (10 ** ((self.tx_power - rssi) / (10 * self.path_loss_exponent)))
+        
+        # Debug logging
+        print(f"DEBUG: RSSI {rssi} dBm → Distance {distance:.2f} m")
         
         # Clamp to reasonable values
         return max(0.1, min(distance, 1000.0))
@@ -60,14 +63,20 @@ class RSSITrilaterationSolver:
         rsu_coords = []
         dist_values = []
         
+        print(f"\nDEBUG: Starting trilateration")
+        print(f"RSU positions: {rsu_positions}")
+        print(f"RSSI measurements: {rssi_measurements}")
+        
         for rsu_id, rssi in rssi_measurements.items():
             if rsu_id in rsu_positions:
                 distance = self.rssi_to_distance(rssi)
                 distances[rsu_id] = distance
                 rsu_coords.append(rsu_positions[rsu_id])
                 dist_values.append(distance)
+                print(f"DEBUG: {rsu_id} at {rsu_positions[rsu_id]} → distance {distance:.2f}m")
         
         if len(rsu_coords) < 3:
+            print(f"DEBUG: Not enough RSUs ({len(rsu_coords)})")
             return None
         
         rsu_coords = np.array(rsu_coords)
@@ -76,31 +85,49 @@ class RSSITrilaterationSolver:
         # Use first RSU as reference point
         ref_point = rsu_coords[0]
         
-        # Set up least squares system: Ax = b
-        # For trilateration: 2(xi - x1)(x - x1) + 2(yi - y1)(y - y1) = ri^2 - r1^2 - xi^2 + x1^2 - yi^2 + y1^2
+        # Use a more stable trilateration approach
+        # Convert to relative coordinates to avoid large numbers
+        x1, y1 = rsu_coords[0]
+        r1 = dist_values[0]
+        
+        # Translate all coordinates relative to first RSU
         A = []
         b = []
         
         for i in range(1, len(rsu_coords)):
             xi, yi = rsu_coords[i]
-            x1, y1 = ref_point
             ri = dist_values[i]
-            r1 = dist_values[0]
             
-            A.append([2 * (xi - x1), 2 * (yi - y1)])
-            b.append(ri**2 - r1**2 - xi**2 + x1**2 - yi**2 + y1**2)
+            # Relative coordinates
+            dx = xi - x1
+            dy = yi - y1
+            
+            # Linearized equation: 2*dx*x + 2*dy*y = dx² + dy² + r1² - ri²
+            A.append([2 * dx, 2 * dy])
+            b.append(dx**2 + dy**2 + r1**2 - ri**2)
+            
+            print(f"DEBUG: Equation {i}: 2*{dx}*x + 2*{dy}*y = {dx**2 + dy**2 + r1**2 - ri**2}")
         
         A = np.array(A)
         b = np.array(b)
         
+        print(f"DEBUG: Matrix A = \n{A}")
+        print(f"DEBUG: Vector b = {b}")
+        
         try:
             # Solve least squares problem
-            position, residuals, rank, s = np.linalg.lstsq(A, b, rcond=None)
+            position_rel, residuals, rank, s = np.linalg.lstsq(A, b, rcond=None)
             
-            if len(position) != 2:
+            if len(position_rel) != 2:
+                print(f"DEBUG: Least squares failed - wrong dimensions")
                 return None
                 
-            x, y = position
+            # Convert back to absolute coordinates
+            x = position_rel[0] + x1
+            y = position_rel[1] + y1
+            
+            print(f"DEBUG: Relative solution: ({position_rel[0]:.2f}, {position_rel[1]:.2f})")
+            print(f"DEBUG: Absolute position: ({x:.2f}, {y:.2f})")
             
             # Calculate accuracy estimate from residuals
             if len(residuals) > 0:
@@ -113,6 +140,7 @@ class RSSITrilaterationSolver:
                                  for i in range(len(rsu_coords)))
                 accuracy = np.sqrt(residual_sum / len(rsu_coords))
             
+            print(f"DEBUG: Final result: ({x:.2f}, {y:.2f}) ±{accuracy:.2f}m")
             return (float(x), float(y), float(accuracy))
             
         except np.linalg.LinAlgError:

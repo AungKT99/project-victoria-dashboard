@@ -66,8 +66,9 @@ class MQTTHandler:
     Handles MQTT communication with AWS IoT Core for Project Victoria
     """
     
-    def __init__(self, data_callback: Optional[Callable] = None):
+    def __init__(self, data_callback: Optional[Callable] = None, demo_mode: bool = False):
         self.data_callback = data_callback
+        self.demo_mode = demo_mode
         self.client = None
         self.connected = False
         self.running = False
@@ -98,7 +99,10 @@ class MQTTHandler:
     
     def _create_client(self):
         """Create and configure MQTT client"""
-        if AWS_IOT_AVAILABLE:
+        if self.demo_mode or not AWS_IOT_AVAILABLE:
+            self.client = MockMQTTClient()
+            self.logger.info("Using mock MQTT client for demo mode")
+        else:
             self.client = AWSIoTMQTTClient(config.aws_iot.client_id)
             
             # Configure connection
@@ -115,9 +119,6 @@ class MQTTHandler:
             self.client.configureDrainingFrequency(2)  # Draining: 2 Hz
             self.client.configureConnectDisconnectTimeout(10)  # 10 sec
             self.client.configureMQTTOperationTimeout(5)  # 5 sec
-        else:
-            self.client = MockMQTTClient()
-            self.logger.warning("Using mock MQTT client")
     
     def _on_rssi_message(self, client, userdata, message):
         """Callback for RSSI data messages"""
@@ -233,7 +234,12 @@ class MQTTHandler:
             self.running = True
             self.thread = threading.Thread(target=self._background_loop, daemon=True)
             self.thread.start()
-            self.logger.info("Started background processing")
+            self.logger.info(f"Started background processing - Demo mode: {self.demo_mode}")
+            
+            # Immediate simulation for demo mode
+            if self.demo_mode:
+                self.logger.info("Running immediate demo simulation")
+                self._simulate_rssi_data()
     
     def stop_background_processing(self):
         """Stop background processing thread"""
@@ -247,7 +253,7 @@ class MQTTHandler:
         while self.running:
             try:
                 # Simulate RSSI data for demo purposes if using mock client
-                if isinstance(self.client, MockMQTTClient):
+                if self.demo_mode or isinstance(self.client, MockMQTTClient):
                     self._simulate_rssi_data()
                 
                 time.sleep(config.dashboard.update_interval)
@@ -260,20 +266,81 @@ class MQTTHandler:
         import random
         import math
         
+        # Simple geometric simulation - no complex RSSI model
+        current_time = time.time()
+        
+        # Circular motion pattern within field bounds
+        angle = (current_time * 0.1) % (2 * math.pi)
+        field_width = config.field.width
+        field_height = config.field.height
+        center_x, center_y = field_width / 2, field_height / 2
+        radius = min(field_width, field_height) * 0.2
+        
+        # TRUE OBU position (what we want to show)
+        true_x = center_x + radius * math.cos(angle)
+        true_y = center_y + radius * math.sin(angle)
+        
+        # Create fake but consistent position data directly
+        position_data = {
+            'x': true_x,
+            'y': true_y,
+            'accuracy': random.uniform(1.0, 3.0),  # Realistic accuracy
+            'timestamp': datetime.now().isoformat(),
+            'rssi_data': {}
+        }
+        
+        # Generate fake RSSI values for display only
+        for rsu_id, (rsu_x, rsu_y) in config.field.rsu_positions.items():
+            distance = math.sqrt((true_x - rsu_x)**2 + (true_y - rsu_y)**2)
+            # Simple fake RSSI based on distance (for display only)
+            fake_rssi = -40 - (distance * 0.5) + random.gauss(0, 2)
+            
+            self.latest_rssi_data[rsu_id] = {
+                'rssi': fake_rssi,
+                'timestamp': datetime.now().isoformat(),
+                'obu_id': 'OBU_DEMO'
+            }
+            position_data['rssi_data'][rsu_id] = self.latest_rssi_data[rsu_id]
+        
+    def _simulate_rssi_data(self):
+        """Simulate RSSI data for demo purposes"""
+        import random
+        import math
+        
         # Simulate an OBU moving in a simple pattern
         current_time = time.time()
         
-        # Circular motion pattern
+        # Circular motion pattern within field bounds
         angle = (current_time * 0.1) % (2 * math.pi)
-        center_x, center_y = 50, 37.5
-        radius = 20
+        field_width = config.field.width
+        field_height = config.field.height
+        center_x, center_y = field_width / 2, field_height / 2
+        radius = min(field_width, field_height) * 0.2
         
         true_x = center_x + radius * math.cos(angle)
         true_y = center_y + radius * math.sin(angle)
         
+        print(f"DEBUG: Simulated TRUE position: ({true_x:.2f}, {true_y:.2f})")
+        
         # Simulate RSSI measurements based on distance to each RSU
         for rsu_id, (rsu_x, rsu_y) in config.field.rsu_positions.items():
             distance = math.sqrt((true_x - rsu_x)**2 + (true_y - rsu_y)**2)
+            
+            # Convert distance to RSSI with some noise
+            true_rssi = self.trilateration_solver.tx_power - 10 * self.trilateration_solver.path_loss_exponent * math.log10(distance)
+            noisy_rssi = true_rssi + random.gauss(0, 3)  # 3 dB noise
+            
+            print(f"DEBUG: {rsu_id} at ({rsu_x}, {rsu_y}) - distance: {distance:.2f}m, RSSI: {noisy_rssi:.1f} dBm")
+            
+            self.latest_rssi_data[rsu_id] = {
+                'rssi': noisy_rssi,
+                'timestamp': datetime.now().isoformat(),
+                'obu_id': 'OBU_DEMO'
+            }
+        
+        # Trigger position calculation
+        if len(self.latest_rssi_data) >= 3:
+            self._calculate_position()
             
             # Convert distance to RSSI with some noise
             true_rssi = self.trilateration_solver.tx_power - 10 * self.trilateration_solver.path_loss_exponent * math.log10(distance)
@@ -305,10 +372,17 @@ class MQTTHandler:
     
     def get_connection_status(self) -> Dict:
         """Get connection status information"""
+        if self.demo_mode:
+            client_type = "Demo Mode"
+            endpoint = "simulated"
+        else:
+            client_type = 'AWS IoT' if AWS_IOT_AVAILABLE and not isinstance(self.client, MockMQTTClient) else 'Mock'
+            endpoint = config.aws_iot.endpoint if AWS_IOT_AVAILABLE and not isinstance(self.client, MockMQTTClient) else 'localhost'
+        
         return {
             'connected': self.connected,
-            'client_type': 'AWS IoT' if AWS_IOT_AVAILABLE else 'Mock',
-            'endpoint': config.aws_iot.endpoint if AWS_IOT_AVAILABLE else 'localhost',
+            'client_type': client_type,
+            'endpoint': endpoint,
             'last_update': self.latest_position['timestamp'] if self.latest_position else None,
             'data_points': len(self.position_history)
-        }   
+        }

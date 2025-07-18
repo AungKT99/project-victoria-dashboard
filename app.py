@@ -85,15 +85,15 @@ def init_session_state():
     
     if 'last_update' not in st.session_state:
         st.session_state.last_update = None
+    
+    if 'connection_mode' not in st.session_state:
+        st.session_state.connection_mode = None  # None, 'aws_iot', 'demo'
 
 def data_callback(position_data):
     """Callback function for new position data"""
-    st.session_state.position_data.append(position_data)
-    st.session_state.last_update = datetime.now()
-    
-    # Limit history
-    if len(st.session_state.position_data) > config.dashboard.max_trail_points:
-        st.session_state.position_data = st.session_state.position_data[-config.dashboard.max_trail_points:]
+    # Don't access st.session_state from background thread
+    # Just pass the data through - it will be picked up by get_latest_data()
+    pass
 
 def create_field_plot():
     """Create the main field visualization plot"""
@@ -219,26 +219,49 @@ def sidebar_configuration():
         st.subheader("Connection")
         
         if st.session_state.mqtt_handler is None:
-            if st.button("🔌 Connect to AWS IoT", type="primary"):
-                with st.spinner("Connecting..."):
-                    st.session_state.mqtt_handler = MQTTHandler(data_callback)
-                    if st.session_state.mqtt_handler.connect():
-                        st.session_state.mqtt_handler.start_background_processing()
-                        st.success("Connected successfully!")
-                        st.rerun()
-                    else:
-                        st.error("Connection failed!")
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                if st.button("🔌 AWS IoT", type="primary", use_container_width=True):
+                    with st.spinner("Connecting to AWS IoT..."):
+                        st.session_state.mqtt_handler = MQTTHandler(data_callback, demo_mode=False)
+                        st.session_state.connection_mode = 'aws_iot'
+                        if st.session_state.mqtt_handler.connect():
+                            st.session_state.mqtt_handler.start_background_processing()
+                            st.success("Connected to AWS IoT!")
+                            st.rerun()
+                        else:
+                            st.error("AWS IoT connection failed!")
+                            st.session_state.mqtt_handler = None
+                            st.session_state.connection_mode = None
+            
+            with col2:
+                if st.button("🎮 Demo Mode", type="secondary", use_container_width=True):
+                    with st.spinner("Starting demo mode..."):
+                        st.session_state.mqtt_handler = MQTTHandler(data_callback, demo_mode=True)
+                        st.session_state.connection_mode = 'demo'
+                        if st.session_state.mqtt_handler.connect():
+                            st.session_state.mqtt_handler.start_background_processing()
+                            st.success("Demo mode started!")
+                            st.rerun()
+                        else:
+                            st.error("Demo mode failed to start!")
+                            st.session_state.mqtt_handler = None
+                            st.session_state.connection_mode = None
         else:
             status = st.session_state.mqtt_handler.get_connection_status()
             if status['connected']:
-                st.success(f"✅ Connected to {status['client_type']}")
+                st.success(f"✅ Connected: {status['client_type']}")
+                
                 if st.button("🔌 Disconnect"):
+                    st.session_state.mqtt_handler.stop_background_processing()
                     st.session_state.mqtt_handler.disconnect()
                     st.session_state.mqtt_handler = None
+                    st.session_state.connection_mode = None
                     st.rerun()
             else:
                 st.error("❌ Disconnected")
-                if st.button("🔌 Reconnect"):
+                if st.button("🔄 Reconnect"):
                     if st.session_state.mqtt_handler.connect():
                         st.session_state.mqtt_handler.start_background_processing()
                         st.success("Reconnected!")
@@ -342,7 +365,8 @@ def main_dashboard():
         if latest_data['position']:
             # Update session state with latest data
             st.session_state.rssi_data = latest_data['rssi_data']
-            # Position data is updated via callback
+            st.session_state.position_data = latest_data['position_history']
+            st.session_state.last_update = datetime.now()
     
     # Main content area
     col1, col2 = st.columns([0.7, 0.3])
