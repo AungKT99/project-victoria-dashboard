@@ -23,7 +23,6 @@ dashboard/
 
 - Python 3.8 or higher
 - pip package manager
-- Git (optional, for cloning)
 
 ### Installation
 
