@@ -18,7 +18,7 @@ except ImportError:
     logging.warning("AWSIoTPythonSDK not available, using mock MQTT client")
 
 from config import config
-from trilateration import RSSITrilaterationSolver, PositionFilter
+from dashboard.trilateration import RSSITrilaterationSolver, PositionFilter
 
 class MockMQTTClient:
     """Mock MQTT client for testing without AWS IoT"""

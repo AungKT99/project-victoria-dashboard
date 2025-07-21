@@ -15,9 +15,9 @@ import json
 # Import project modules
 from config import config
 from mqtt_handler import MQTTHandler
-from trilateration import RSSITrilaterationSolver
-from utils.field_config import validate_rsu_positions
-from utils.data_processing import format_rssi_for_display, calculate_data_rate
+from dashboard.trilateration import RSSITrilaterationSolver
+from field_config import validate_rsu_positions
+from data_processing import format_rssi_for_display, calculate_data_rate
 
 # Page configuration
 st.set_page_config(
