@@ -2,6 +2,7 @@
 """
 Project Victoria Field Test RSSI Collector
 Collects RSSI measurements from RSU socket connection for field testing
+Modified to append to existing rssi_field_test.csv or create if not exists
 """
 
 import json
@@ -12,14 +13,13 @@ import signal
 import sys
 import csv
 import argparse
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 
 # Configuration
 SOCKET_PORT = 9999
-
-
-
+CSV_FILENAME = "rssi_field_test.csv"
 
 
 class FieldTestCollector:
@@ -49,22 +49,35 @@ class FieldTestCollector:
             print("Running continuously until Ctrl+C")
 
     def init_csv_file(self):
-        """Initialize CSV file with headers"""
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"rssi_field_test_{timestamp}.csv"
-
+        """Initialize CSV file with headers or append to existing file"""
+        file_exists = os.path.exists(CSV_FILENAME)
+        
         try:
-            self.csv_file = open(filename, 'w', newline='')
-            self.csv_writer = csv.writer(self.csv_file)
-
-            # Write header
-            self.csv_writer.writerow(['timestamp', 'rssi_dbm', 'distance_m'])
-            self.csv_file.flush()
-
-            print(f"CSV file created: {filename}")
+            if file_exists:
+                # File exists, open in append mode
+                self.csv_file = open(CSV_FILENAME, 'a', newline='')
+                self.csv_writer = csv.writer(self.csv_file)
+                print(f"Appending to existing CSV file: {CSV_FILENAME}")
+                
+                # Count existing rows to continue sample numbering
+                with open(CSV_FILENAME, 'r') as temp_file:
+                    reader = csv.reader(temp_file)
+                    # Skip header row and count data rows
+                    next(reader, None)  # Skip header
+                    existing_rows = sum(1 for row in reader)
+                    print(f"Found {existing_rows} existing samples in CSV file")
+            else:
+                # File doesn't exist, create new file with headers
+                self.csv_file = open(CSV_FILENAME, 'w', newline='')
+                self.csv_writer = csv.writer(self.csv_file)
+                
+                # Write header
+                self.csv_writer.writerow(['timestamp', 'rssi_dbm', 'distance_m'])
+                self.csv_file.flush()
+                print(f"Created new CSV file: {CSV_FILENAME}")
 
         except Exception as e:
-            print(f"Failed to create CSV file: {e}")
+            print(f"Failed to initialize CSV file: {e}")
             sys.exit(1)
 
     def start_socket_server(self):
@@ -175,7 +188,7 @@ class FieldTestCollector:
         # Close CSV file
         if self.csv_file:
             self.csv_file.close()
-            print(f"CSV file saved with {self.sample_count} samples")
+            print(f"CSV file saved with {self.sample_count} samples added this session")
 
         print("Field Test Collector stopped")
 
