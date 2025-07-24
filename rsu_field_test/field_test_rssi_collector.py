@@ -33,7 +33,7 @@ class FieldTestCollector:
         self.running = False
         self.csv_file = None
         self.csv_writer = None
-        
+
         # Setup signal handlers for proper cleanup
         signal.signal(signal.SIGINT, self.shutdown)
         signal.signal(signal.SIGTERM, self.shutdown)
@@ -52,17 +52,17 @@ class FieldTestCollector:
         """Initialize CSV file with headers"""
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"rssi_field_test_{timestamp}.csv"
-        
+
         try:
             self.csv_file = open(filename, 'w', newline='')
             self.csv_writer = csv.writer(self.csv_file)
-            
+
             # Write header
             self.csv_writer.writerow(['timestamp', 'rssi_dbm', 'distance_m'])
             self.csv_file.flush()
-            
+
             print(f"CSV file created: {filename}")
-            
+
         except Exception as e:
             print(f"Failed to create CSV file: {e}")
             sys.exit(1)
